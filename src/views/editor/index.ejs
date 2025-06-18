@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BDPADrive - <%= file ? file.name : 'New File' %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/codemirror@5.65.2/lib/codemirror.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/codemirror@5.65.2/theme/monokai.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        .editor-container {
+            display: flex;
+            height: calc(100vh - 120px);
+        }
+        .editor-pane, .preview-pane {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .editor-pane {
+            background: #272822;
+        }
+        .preview-pane {
+            background: #fff;
+            border-left: 1px solid #dee2e6;
+        }
+        .CodeMirror {
+            height: 100%;
+            font-size: 16px;
+        }
+        .save-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .tag-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .tag-item {
+            background: #e9ecef;
+            border-radius: 15px;
+            padding: 2px 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .tag-item button {
+            border: none;
+            background: none;
+            color: #666;
+            padding: 0;
+            font-size: 14px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <%- include('../partials/navbar') %>
+
+    <div class="container-fluid">
+        <!-- Toolbar -->
+        <div class="row py-3 border-bottom">
+            <div class="col">
+                <div class="d-flex align-items-center gap-3">
+                    <input type="text" id="fileName" class="form-control w-auto" 
+                           value="<%= file ? file.name : '' %>" 
+                           placeholder="Enter file name">
+                    
+                    <div class="input-group w-auto">
+                        <input type="text" id="newTag" class="form-control" 
+                               placeholder="Add tag">
+                        <button class="btn btn-outline-secondary" type="button"
+                                onclick="addTag()">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+
+                    <div class="tag-container" id="tagContainer">
+                        <% if (file && file.tags) { %>
+                            <% file.tags.forEach(function(tag) { %>
+                                <span class="tag-item">
+                                    <%= tag %>
+                                    <button onclick="removeTag('<%= tag %>')">×</button>
+                                </span>
+                            <% }); %>
+                        <% } %>
+                    </div>
+
+                    <button class="btn btn-primary ms-auto" onclick="saveFile()">
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Editor -->
+        <div class="editor-container">
+            <div class="editor-pane">
+                <textarea id="editor"><%= file ? file.text : '' %></textarea>
+            </div>
+            <div class="preview-pane">
+                <div id="preview"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="save-status" id="saveStatus"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.2/lib/codemirror.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.2/mode/markdown/markdown.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        // Initialize variables
+        const fileId = '<%= file ? file.node_id : "" %>';
+        const parentId = '<%= parentId %>';
+        const clientId = '<%= clientId %>';
+        let tags = new Set(<%= JSON.stringify(file ? file.tags || [] : []) %>);
+        let lastSaveTimeout;
+        let isDirty = false;
+
+        // Initialize CodeMirror editor
+        const editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
+            mode: 'markdown',
+            theme: 'monokai',
+            lineWrapping: true,
+            lineNumbers: true
+        });
+
+        // Update preview when editor content changes
+        editor.on('change', () => {
+            updatePreview();
+            markDirty();
+        });
+
+        // Initialize markdown preview
+        marked.setOptions({
+            breaks: true,
+            sanitize: true
+        });
+
+        function updatePreview() {
+            const content = editor.getValue();
+            document.getElementById('preview').innerHTML = marked(content);
+        }
+
+        // Initialize preview
+        updatePreview();
+
+        // Tag management
+        function addTag() {
+            const input = document.getElementById('newTag');
+            const tag = input.value.trim().toLowerCase();
+            
+            if (tag && tags.size < 5) {
+                tags.add(tag);
+                updateTagDisplay();
+                input.value = '';
+                markDirty();
+            }
+        }
+
+        function removeTag(tag) {
+            tags.delete(tag);
+            updateTagDisplay();
+            markDirty();
+        }
+
+        function updateTagDisplay() {
+            const container = document.getElementById('tagContainer');
+            container.innerHTML = '';
+            
+            tags.forEach(tag => {
+                const span = document.createElement('span');
+                span.className = 'tag-item';
+                span.innerHTML = `
+                    ${tag}
+                    <button onclick="removeTag('${tag}')">×</button>
+                `;
+                container.appendChild(span);
+            });
+        }
+
+        // File saving
+        function markDirty() {
+            isDirty = true;
+            updateSaveStatus('Unsaved changes');
+            
+            // Schedule auto-save
+            clearTimeout(lastSaveTimeout);
+            lastSaveTimeout = setTimeout(() => {
+                if (isDirty) saveFile();
+            }, 30000); // Auto-save after 30 seconds
+        }
+
+        function updateSaveStatus(message, type = 'warning') {
+            const status = document.getElementById('saveStatus');
+            status.className = `save-status alert alert-${type}`;
+            status.textContent = message;
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    status.style.display = 'none';
+                }, 3000);
+            } else {
+                status.style.display = 'block';
+            }
+        }
+
+        async function saveFile() {
+            const name = document.getElementById('fileName').value.trim();
+            if (!name) {
+                alert('Please enter a file name');
+                return;
+            }
+
+            try {
+                const response = await fetch('/editor/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        nodeId: fileId,
+                        name: name,
+                        text: editor.getValue(),
+                        tags: Array.from(tags),
+                        parentId: parentId
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    isDirty = false;
+                    updateSaveStatus('Saved successfully', 'success');
+                    
+                    // If this is a new file, redirect to the edit URL
+                    if (!fileId && data.nodeId) {
+                        window.location.href = `/editor/${data.nodeId}`;
+                    }
+                } else {
+                    updateSaveStatus('Failed to save', 'danger');
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                updateSaveStatus('Failed to save', 'danger');
+            }
+        }
+
+        // Handle page unload
+        window.addEventListener('beforeunload', async (e) => {
+            if (isDirty) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+
+            // Release lock if we have one
+            if (fileId) {
+                try {
+                    await fetch(`/editor/${fileId}/release-lock`, {
+                        method: 'POST'
+                    });
+                } catch (error) {
+                    console.error('Failed to release lock:', error);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BDPADrive - Explorer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('../partials/navbar') %>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <div class="mb-3">
+                        <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#createModal">
+                            <i class="bi bi-plus-lg"></i> Create New
+                        </button>
+                    </div>
+                    <div class="nav flex-column">
+                        <a href="/explorer" class="nav-link <%= !currentFolder ? 'active' : '' %>">
+                            <i class="bi bi-house"></i> Root Directory
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <!-- Breadcrumb -->
+                <nav aria-label="breadcrumb" class="mt-3">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/explorer">Home</a></li>
+                        <% currentPath.forEach(function(node) { %>
+                            <li class="breadcrumb-item">
+                                <a href="/explorer/folder/<%= node.node_id %>"><%= node.name %></a>
+                            </li>
+                        <% }); %>
+                    </ol>
+                </nav>
+
+                <!-- Sort controls -->
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+                    <h1 class="h2"><%= currentFolder ? currentFolder.name : 'My Files' %></h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <div class="dropdown">
+                            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="sortDropdown" data-bs-toggle="dropdown">
+                                Sort by: <%= sort.charAt(0).toUpperCase() + sort.slice(1) %>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="?sort=name">Name</a></li>
+                                <li><a class="dropdown-item" href="?sort=createdAt">Created Date</a></li>
+                                <li><a class="dropdown-item" href="?sort=modifiedAt">Modified Date</a></li>
+                                <li><a class="dropdown-item" href="?sort=size">Size</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Files and folders grid -->
+                <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4">
+                    <% nodes.forEach(function(node) { %>
+                        <div class="col">
+                            <div class="card h-100">
+                                <% if (node.type === 'file') { %>
+                                    <div class="card-img-top bg-light text-center p-3" style="height: 160px;">
+                                        <% if (node.text) { %>
+                                            <div class="file-preview markdown-preview">
+                                                <%- node.text.substring(0, 200) %>
+                                            </div>
+                                        <% } else { %>
+                                            <i class="bi bi-file-text display-1"></i>
+                                        <% } %>
+                                    </div>
+                                <% } else if (node.type === 'directory') { %>
+                                    <div class="card-img-top bg-light text-center p-3" style="height: 160px;">
+                                        <i class="bi bi-folder display-1"></i>
+                                    </div>
+                                <% } else if (node.type === 'symlink') { %>
+                                    <div class="card-img-top bg-light text-center p-3" style="height: 160px;">
+                                        <i class="bi bi-link display-1"></i>
+                                    </div>
+                                <% } %>
+                                <div class="card-body">
+                                    <h5 class="card-title text-truncate">
+                                        <% if (node.type === 'directory') { %>
+                                            <a href="/explorer/folder/<%= node.node_id %>" class="text-decoration-none text-dark">
+                                                <%= node.name %>
+                                            </a>
+                                        <% } else if (node.type === 'file') { %>
+                                            <a href="/editor/<%= node.node_id %>" class="text-decoration-none text-dark">
+                                                <%= node.name %>
+                                            </a>
+                                        <% } else { %>
+                                            <%= node.name %>
+                                            <% if (node.contents && node.contents.length === 0) { %>
+                                                <span class="badge bg-danger">Broken Link</span>
+                                            <% } %>
+                                        <% } %>
+                                    </h5>
+                                    <p class="card-text small text-muted mb-0">
+                                        Created: <%= new Date(node.createdAt).toLocaleString() %>
+                                    </p>
+                                    <% if (node.modifiedAt) { %>
+                                        <p class="card-text small text-muted mb-0">
+                                            Modified: <%= new Date(node.modifiedAt).toLocaleString() %>
+                                        </p>
+                                    <% } %>
+                                    <% if (node.type === 'file' && node.tags && node.tags.length > 0) { %>
+                                        <div class="mt-2">
+                                            <% node.tags.forEach(function(tag) { %>
+                                                <span class="badge bg-secondary me-1"><%= tag %></span>
+                                            <% }); %>
+                                        </div>
+                                    <% } %>
+                                </div>
+                                <div class="card-footer bg-white border-top-0">
+                                    <div class="btn-group w-100">
+                                        <button class="btn btn-outline-secondary btn-sm" onclick="showRenameModal('<%= node.node_id %>', '<%= node.name %>')">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm" onclick="showMoveModal('<%= node.node_id %>')">
+                                            <i class="bi bi-arrows-move"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm" onclick="confirmDelete('<%= node.node_id %>')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Create Modal -->
+    <div class="modal fade" id="createModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary" onclick="showCreateFolderModal()">
+                            <i class="bi bi-folder-plus"></i> New Folder
+                        </button>
+                        <a href="/editor/new<%= currentFolder ? '?parentId=' + currentFolder.node_id : '' %>" class="btn btn-outline-primary">
+                            <i class="bi bi-file-earmark-plus"></i> New File
+                        </a>
+                        <button class="btn btn-outline-primary" onclick="showCreateSymlinkModal()">
+                            <i class="bi bi-link"></i> New Symlink
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Other modals for rename, move, etc. will be injected by JavaScript -->
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="/js/explorer.js"></script>
+</body>
+</html>

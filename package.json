@@ -1,0 +1,28 @@
+{
+  "name": "bdpadrive",
+  "version": "1.0.0",
+  "description": "Web-based file storage and document editing application",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ejs": "^3.1.9",
+    "express-session": "^1.17.3",
+    "node-fetch": "^2.6.11",
+    "marked": "^5.1.0",
+    "html-to-image": "^1.11.11",
+    "crypto-js": "^4.1.1",
+    "connect-flash": "^0.1.1",
+    "dotenv": "^16.3.1",
+    "method-override": "^3.0.0",
+    "morgan": "^1.10.0",
+    "node-cache": "^5.1.2"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+}
