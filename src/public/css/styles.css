@@ -3,6 +3,48 @@ body {
     min-height: 100vh;
 }
 
+/* Navbar styles */
+.bg-dark-red {
+    background-color: #8b1538 !important;
+}
+
+.navbar.bg-dark-red {
+    background-color: #8b1538 !important;
+}
+
+.navbar.bg-dark-red .navbar-brand,
+.navbar.bg-dark-red .nav-link {
+    color: #fff !important;
+}
+
+.navbar.bg-dark-red .nav-link:hover {
+    color: #f8f9fa !important;
+}
+
+.navbar.bg-dark-red .navbar-toggler-icon {
+    filter: invert(1);
+}
+
+.navbar.bg-dark-red .dropdown-menu {
+    background-color: #8b1538;
+    border: 1px solid #a91e42;
+}
+
+.navbar.bg-dark-red .dropdown-item {
+    color: #fff;
+}
+
+.navbar.bg-dark-red .dropdown-item:hover {
+    background-color: #a91e42;
+    color: #fff;
+}
+
+.navbar-logo {
+    height: 32px;
+    width: auto;
+    max-width: 40px;
+}
+
 /* Auth pages */
 .auth-container {
     max-width: 400px;

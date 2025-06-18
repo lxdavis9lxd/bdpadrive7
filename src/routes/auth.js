@@ -4,6 +4,36 @@ const apiService = require('../services/apiService');
 const cryptoService = require('../services/cryptoService');
 const { isGuest, isAuthenticated } = require('../middleware/auth');
 
+// CAPTCHA generation helper
+function generateCaptcha() {
+  const operations = [
+    { a: Math.floor(Math.random() * 10) + 1, b: Math.floor(Math.random() * 10) + 1, op: '+' },
+    { a: Math.floor(Math.random() * 10) + 5, b: Math.floor(Math.random() * 5) + 1, op: '-' },
+    { a: Math.floor(Math.random() * 5) + 2, b: Math.floor(Math.random() * 5) + 2, op: '*' }
+  ];
+  
+  const captcha = operations[Math.floor(Math.random() * operations.length)];
+  let answer;
+  let question;
+  
+  switch (captcha.op) {
+    case '+':
+      answer = captcha.a + captcha.b;
+      question = `What is ${captcha.a} + ${captcha.b}?`;
+      break;
+    case '-':
+      answer = captcha.a - captcha.b;
+      question = `What is ${captcha.a} - ${captcha.b}?`;
+      break;
+    case '*':
+      answer = captcha.a * captcha.b;
+      question = `What is ${captcha.a} × ${captcha.b}?`;
+      break;
+  }
+  
+  return { question, answer };
+}
+
 // Auth view - Landing page for guests
 router.get('/', isGuest, (req, res) => {
   res.render('auth/landing');
@@ -49,13 +79,54 @@ router.post('/login', isGuest, async (req, res) => {
 
 // Register page
 router.get('/register', isGuest, (req, res) => {
-  res.render('auth/register');
+  const captcha = generateCaptcha();
+  res.render('auth/register', {
+    captchaQuestion: captcha.question,
+    captchaAnswer: captcha.answer
+  });
 });
 
 // Register logic
 router.post('/register', isGuest, async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, confirmPassword, captcha, captchaAnswer } = req.body;
+
+    // Validation
+    const errors = [];
+
+    // Username validation (alphanumeric, dashes, underscores)
+    if (!/^[a-zA-Z0-9-_]+$/.test(username)) {
+      errors.push('Username must contain only letters, numbers, dashes, and underscores');
+    }
+
+    // Email validation
+    if (!email || !email.includes('@')) {
+      errors.push('Please provide a valid email address');
+    }
+
+    // Password strength validation
+    if (password.length <= 10) {
+      errors.push('Password is too weak. Must be at least 11 characters');
+    }
+
+    // Password confirmation
+    if (password !== confirmPassword) {
+      errors.push('Passwords do not match');
+    }
+
+    // CAPTCHA validation
+    if (parseInt(captcha) !== parseInt(captchaAnswer)) {
+      errors.push('CAPTCHA answer is incorrect');
+    }
+
+    if (errors.length > 0) {
+      const newCaptcha = generateCaptcha();
+      return res.render('auth/register', {
+        error: errors.join('. '),
+        captchaQuestion: newCaptcha.question,
+        captchaAnswer: newCaptcha.answer
+      });
+    }
 
     // Generate salt and derive key
     const salt = await cryptoService.generateSalt();
@@ -73,16 +144,25 @@ router.post('/register', isGuest, async (req, res) => {
       req.flash('success', 'Registration successful! Please log in.');
       res.redirect('/login');
     } else {
-      req.flash('error', 'Registration failed. Please try again.');
-      res.redirect('/register');
+      const newCaptcha = generateCaptcha();
+      res.render('auth/register', {
+        error: 'Registration failed. Please try again.',
+        captchaQuestion: newCaptcha.question,
+        captchaAnswer: newCaptcha.answer
+      });
     }
   } catch (error) {
     let message = 'Registration failed. Please try again.';
-    if (error.message.includes('duplicate')) {
+    if (error.message.includes('duplicate') || error.message.includes('already exists')) {
       message = 'Username already exists. Please choose another.';
     }
-    req.flash('error', message);
-    res.redirect('/register');
+    
+    const newCaptcha = generateCaptcha();
+    res.render('auth/register', {
+      error: message,
+      captchaQuestion: newCaptcha.question,
+      captchaAnswer: newCaptcha.answer
+    });
   }
 });
 
