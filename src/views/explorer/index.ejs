@@ -102,6 +102,11 @@
                                             <% } %>
                                         <% } %>
                                     </h5>
+                                    <% if (node.type === 'directory') { %>
+                                        <p class="card-text small text-primary mb-1">
+                                            <strong>Folder ID:</strong> <%= node.node_id %>
+                                        </p>
+                                    <% } %>
                                     <p class="card-text small text-muted mb-0">
                                         Created: <%= new Date(node.createdAt).toLocaleString() %>
                                     </p>

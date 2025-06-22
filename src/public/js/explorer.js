@@ -134,8 +134,11 @@ function showMoveModal(nodeId) {
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="newParentId" class="form-label">Target Folder ID</label>
-                        <input type="text" class="form-control" id="newParentId">
-                        <div class="form-text">Enter the node_id of the destination folder</div>
+                        <input type="text" class="form-control" id="newParentId" placeholder="Leave empty to move to root folder">
+                        <div class="form-text">
+                            Enter the node_id of the destination folder, or leave empty to move to root folder.
+                            You can see folder IDs displayed under each folder name.
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -177,7 +180,13 @@ async function renameNode(nodeId) {
 
 async function moveNode(nodeId) {
     const newParentId = document.getElementById('newParentId').value;
-    const currentParentId = new URLSearchParams(window.location.search).get('folderId');
+    
+    // Get current parent ID from URL or detect from current page
+    let currentParentId = null;
+    const pathParts = window.location.pathname.split('/');
+    if (pathParts.length > 3 && pathParts[2] === 'folder') {
+        currentParentId = pathParts[3];
+    }
     
     try {
         const response = await fetch(`/explorer/node/${nodeId}`, {
@@ -186,18 +195,19 @@ async function moveNode(nodeId) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                newParentId,
-                currentParentId
+                newParentId: newParentId || null, // Allow moving to root
+                currentParentId: currentParentId
             })
         });
         
         if (response.ok) {
             window.location.reload();
         } else {
-            alert('Failed to move item');
+            const error = await response.json();
+            alert(`Failed to move item: ${error.error || 'Unknown error'}`);
         }
     } catch (error) {
-        alert('Failed to move item');
+        alert('Failed to move item: Network error');
     }
 }
 

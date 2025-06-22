@@ -178,26 +178,44 @@ router.put('/node/:nodeId', isAuthenticated, async (req, res) => {
         await apiService.updateNode(req.session.user.username, nodeId, updateData);
 
         // Handle moving the node to a new parent folder
-        if (newParentId && newParentId !== currentParentId) {
-            // Remove from current parent
+        if (newParentId !== undefined && newParentId !== currentParentId) {
+            // Remove from current parent (if it has one)
             if (currentParentId) {
-                const currentParentResult = await apiService.getNodes(req.session.user.username, [currentParentId]);
-                const currentParent = currentParentResult.nodes[0];
-                await apiService.updateNode(req.session.user.username, currentParentId, {
-                    contents: currentParent.contents.filter(id => id !== nodeId)
-                });
+                try {
+                    const currentParentResult = await apiService.getNodes(req.session.user.username, [currentParentId]);
+                    const currentParent = currentParentResult.nodes[0];
+                    if (currentParent && currentParent.contents) {
+                        await apiService.updateNode(req.session.user.username, currentParentId, {
+                            contents: currentParent.contents.filter(id => id !== nodeId)
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error removing from current parent:', error);
+                }
             }
 
-            // Add to new parent
-            const newParentResult = await apiService.getNodes(req.session.user.username, [newParentId]);
-            const newParent = newParentResult.nodes[0];
-            await apiService.updateNode(req.session.user.username, newParentId, {
-                contents: [...newParent.contents, nodeId]
-            });
+            // Add to new parent (if specified)
+            if (newParentId) {
+                try {
+                    const newParentResult = await apiService.getNodes(req.session.user.username, [newParentId]);
+                    const newParent = newParentResult.nodes[0];
+                    if (newParent) {
+                        await apiService.updateNode(req.session.user.username, newParentId, {
+                            contents: [...(newParent.contents || []), nodeId]
+                        });
+                    } else {
+                        return res.status(404).json({ error: 'Target folder not found' });
+                    }
+                } catch (error) {
+                    console.error('Error adding to new parent:', error);
+                    return res.status(500).json({ error: 'Failed to add to target folder' });
+                }
+            }
         }
 
         res.json({ success: true });
     } catch (error) {
+        console.error('Update node error:', error);
         res.status(500).json({ error: 'Failed to update node' });
     }
 });
